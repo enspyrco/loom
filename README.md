@@ -60,11 +60,11 @@ Speculative, listed for posterity:
 - **Schema migrations as first-class operations** — *"rename `title` to `headline` across all 200 documents"* as a single MCP call.
 - **Multi-repo content federation** — edit content from several repos in one surface.
 - **Schema'd blocks in markdown bodies** — callouts, project cards, embeds rendered through the same form system.
-- **Differential consent** — fine-grained scopes per agent (e.g., the marketing-summariser agent can edit project descriptions but not team bios).
+- **Differential consent** — fine-grained scopes per agent (e.g., the [Scribe](agents/scribe.md) can edit project descriptions but not team bios).
 
 ## Status
 
-Paused. The repo holds a name, this README, and an MIT license. No code.
+Paused. The repo holds a name, this README, an MIT license, and the design for the [Scribe](agents/scribe.md) — the first agent intended to be native to Loom. No code yet.
 
 The trigger for resumption: a real use case where (a) a team has more than ~3 content editors, (b) AI agents are actively touching the same content as humans, and (c) the friction of the current *"agent does the work → human hand-edits the result into the CMS"* loop is genuinely costing time.
 
