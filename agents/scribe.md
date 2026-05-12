@@ -148,8 +148,8 @@ Implementation small enough to fit on the back of a napkin.
 ```
 .github/workflows/scribe-breath.yml   # cron every 10 min, runs one breath
 scripts/scribe/breath.ts              # gather → hold → exhale → log
-data/scribe/chronicle.jsonl           # append-only, breath-numbered
-data/scribe/state.json                # current breath state, read by site
+public/scribe/chronicle.jsonl           # append-only, breath-numbered
+public/scribe/state.json                # current breath state, read by site
 components/Breath.tsx                 # the dot, animated from state.json
 app/scribe/page.tsx                   # /scribe — what is this?
 app/scribe/breaths/page.tsx           # /scribe/breaths — the chronicle
