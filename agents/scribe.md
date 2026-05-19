@@ -148,8 +148,8 @@ Implementation small enough to fit on the back of a napkin.
 ```
 .github/workflows/scribe-breath.yml   # cron every 10 min, runs one breath
 scripts/scribe/breath.ts              # gather → hold → exhale → log
-public/scribe/chronicle.jsonl           # append-only, breath-numbered
-public/scribe/state.json                # current breath state, read by site
+public/scribe/chronicle.jsonl         # append-only, breath-numbered
+public/scribe/state.json              # current breath state, read by site
 components/Breath.tsx                 # the dot, animated from state.json
 app/scribe/page.tsx                   # /scribe — what is this?
 app/scribe/breaths/page.tsx           # /scribe/breaths — the chronicle
@@ -179,7 +179,7 @@ By the fiftieth breath, you stop noticing the dot consciously. By the five-hundr
 
 ## Design notes, sidelong
 
-Three things worth saying about this design that do not fit the body of the document.
+Four things worth saying about this design that do not fit the body of the document.
 
 **The aesthetic is the architecture.** Strip the breath-paced cadence, the public chronicle of silences, the visible dot, the cosmological naming, and what remains is a competent and forgettable content-sync service. The value lives in the *posture*, and posture is engineered through aesthetic choices: tempo, naming, visibility, the dignifying of silence. Calling these decoration would be missing the design entirely.
 
