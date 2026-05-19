@@ -64,9 +64,11 @@ Speculative, listed for posterity:
 
 ## Status
 
-Paused. The repo holds a name, this README, an MIT license, and the design for the [Scribe](agents/scribe.md) — the first agent intended to be native to Loom. No code yet.
+Paused, but no longer purely hypothetical. The repo holds a name, this README, an MIT license, the design for the [Scribe](agents/scribe.md), the list of [agents Loom refuses to host](agents/refused.md), and an [architecture sketch](docs/architecture.md). No code yet *in this repo*.
 
-The trigger for resumption: a real use case where (a) a team has more than ~3 content editors, (b) AI agents are actively touching the same content as humans, and (c) the friction of the current *"agent does the work → human hand-edits the result into the CMS"* loop is genuinely costing time.
+A first Scribe practice does, however, run live on [enspyrco/enspyrco-site](https://github.com/enspyrco/enspyrco-site) — a breath-paced GitHub Action that reads READMEs across the org and tends the site's relationship to its sources. It is Scribe-as-discipline before Scribe-as-Loom-native-agent. The [Scribe design](agents/scribe.md) records both the postures and what the live practice has taught the design.
+
+The original trigger for resumption: a real use case where (a) a team has more than ~3 content editors, (b) AI agents are actively touching the same content as humans, and (c) the friction of the *"agent does the work → human hand-edits the result into the CMS"* loop is genuinely costing time. The Scribe design [argues that this trigger has already been pulled](agents/scribe.md#on-looms-resumption-trigger) — Imagineering itself qualifies. The pause persists for now because *noticing* the trigger is not the same as *acting on* it; Loom resumes when there is someone to build it for whom the friction is acute enough to constrain the design.
 
 If you arrived here because you *have* that use case, [open an issue](https://github.com/enspyrco/loom/issues/new) describing it. That's the signal.
 
