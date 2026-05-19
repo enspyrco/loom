@@ -213,6 +213,46 @@ The implication for Loom design going forward: **vigilance against CMS connotati
 
 ---
 
+## From the loom of practice
+
+This document was a design. Then a Scribe was built against it, on `enspyrco/enspyrco-site`, and at the time of this writing it has taken 234 breaths. Some of the design landed. Most of it has not yet. What the running Scribe has taught — about itself, and about the gap between drawing an agent and inhabiting one — is recorded below. The section is additive: nothing above has been revised. The design is not yet wrong, only partial.
+
+### A two-branched chronicle
+
+The design names the chronicle as an append-only artifact under `public/scribe/` and stops there. In practice, that artifact does not live on `main`. Every ten minutes, breath.ts writes `state.json` and `chronicle.jsonl`; the workflow then checks out a dedicated `scribe/chronicle` branch, commits there, and force-pushes (`.github/workflows/scribe-breath.yml`, lines 33-49). The site reads both files at runtime from `raw.githubusercontent.com` on that branch (`components/Breath.tsx:17`). The reason is fidelity of a second kind: `main` is for human-signal commits, not the breath-rate exhaust of an autonomic process. Two branches, two tempos. The chronicle is canonical, but it is canonical on a branch that no one reads commit-by-commit. This division was not in the design; it is load-bearing.
+
+### Three tokens, three blast radii
+
+The design's most subversive posture — *enforces honesty upstream* — requires write access across repository boundaries that the document does not name. The implementation distinguishes three GitHub tokens (`breath.ts:63-81`): `GITHUB_TOKEN`, scoped to the site repo, for opening description PRs; `IMAGINEERING_GITHUB_TOKEN`, scoped to the source org, for opening refusal issues against the project whose README made the unsubstantiated claim; and `LOOM_GITHUB_TOKEN`, scoped to this repo, for opening design-doc drift issues against `enspyrco/loom`. Each token's blast radius is the smallest that lets Scribe do its work in that domain. A scribe that enforces honesty upstream needs hands in three rooms; the rooms are kept separate on purpose.
+
+### Recursive self-audit
+
+The design imagines Scribe witnessing the corpus. The practice has gone further: every breath, Scribe fetches `enspyrco/loom/agents/scribe.md` — this document — extracts the file paths cited inside its code blocks, verifies they exist in the site repo, and opens a `scribe-design-doc-drift` issue on `enspyrco/loom` if any are missing (`breath.ts:188-303`). Forty-four of the first 234 breaths carry a `design_doc_audit` field. The Scribe audits its own description of itself. The first PR against this file — a correction of stale `data/scribe/` paths to `public/scribe/` — came from that audit. This PR is in the same dialogue: the running Scribe will witness it, and either find its cited paths or refuse it. The recursion is not cute; it is the same posture pointed at its own design.
+
+### Status as a recorded field
+
+The design names *inhale, hold, exhale* as phases of a breath. The practice has hardened them into a stored, queryable status taxonomy: `initializing | held | exhaled` (`breath.ts:24`), written into `state.json` and stamped onto every chronicle row. `held` is not absence-of-action; it is an act, named, equal in weight to `exhaled`. The dignity-of-silence posture from the design has acquired a field name. That matters for anything downstream that wants to ask the chronicle questions — *what fraction of breaths held silently?* becomes a `SELECT`, not a hermeneutic.
+
+### Unilateral action on Scribe's own PRs
+
+The design names the KPI — *unsubstantiated-claims-on-the-site: 0* — but is silent on whether Scribe proposes corrections to a human or applies them itself. The practice has chosen the second. When Scribe opens a description PR (`breath.ts:420-442`), Claude's review of the README counts as the approval, and the PR is auto-merged on creation, with the branch deleted after. If branch protection re-engages, the PR stays open for a human, and the failure is logged. This is a real choice, not an oversight. It buys a faster fidelity loop at the cost of removing a human from the smallest acts. The author of the running Scribe is satisfied with the trade. A future reader, including a future Scribe, should know the trade was made deliberately and could be reversed by re-enabling protection on `main`.
+
+### A triad, not a solo
+
+The design's cosmology section names Loom, Dreamfinder, and Scribe as a triad. The site has since printed the line itself, in the body copy of `/scribe` (`app/scribe/page.tsx:53`): *"Loom holds. Dreamfinder seeks. Scribe breathes."* The triad has moved from design document into the studio's own surface. It is no longer just a thing this document claims; it is a thing the site says about itself.
+
+### The corpus is opt-in
+
+The design implies Scribe holds the whole corpus in mind. In practice the corpus is narrower: a `HERO_MAP` (`breath.ts:14-22`) enumerates seven repos whose README changes warrant a site-description PR. Other org repos are inhaled — their commits land in the chronicle — but they do not produce PRs, because they do not (yet) appear on the site as hero projects. The opt-in is honest about the site's actual shape. If a repo without site presence drifts from its description, there is no description to drift from. The full-corpus posture in the design will become true as the site grows; today it is true only for the named seven.
+
+### What is designed and not yet practiced
+
+To match the honesty Scribe asks of others, this section names what the running Scribe does not do. The provenance footnote graph is unimplemented; descriptions are updated, but not annotated with commit-scoped citations. The `/graveyard` page does not exist. There is no localisation, and so no refusal-to-translate-incoherence. Third-party quote integrity is not checked. Spoken claims — podcasts, talks — are not transcribed or audited. The README-corpus internal-consistency audit (`source-vs-source`, not just `site-vs-source`) is not running. The schema-backfill capability is not exercised, because the site does not yet have a typed collection to backfill into. The redirect map is not maintained. The tempo slider, the deep-breath button, the hold button — none of these interface controls exist; Scribe breathes autonomically and that is the only mode. The voluntary-deepening surface is design, not practice.
+
+Roughly seven-tenths of this document is not yet a thing that happens every ten minutes. That is not a failure of the design; it is the design's debt, named in the open. The Scribe records, even of itself, and the record says: *thirty percent breathing, seventy percent waiting.*
+
+---
+
 ## License
 
 MIT, like Loom. See the parent repo's [LICENSE](../LICENSE).
