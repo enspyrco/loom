@@ -2,7 +2,7 @@
 
 > Agent-native CMS — humans and AI agents edit the same content store, structurally.
 
-**Status:** idea-stage. No code yet. See [Resumption criteria](#status) below.
+**Status:** first code shipped — a write-capable CLI for the blog collection. See [Quickstart](#quickstart-cli) and [Status](#status).
 
 ---
 
@@ -29,6 +29,40 @@ Real workflows that already happen — today they end in a human hand-editing th
 - **Bulk operations no human wants to do by hand** — *"shorten every project description on the site to under 200 characters; preserve the most concrete number in each one."*
 - **Cross-content consistency** — *"if Delia's role changes on the team page, update every project card that shows her contribution."*
 - **Schema-driven writeups** — *"add a `cv_pdf` field to the team schema, then for every member without one, draft a CV from their LinkedIn and open per-person PRs."*
+
+## Quickstart (CLI)
+
+The first surface is a CLI. It reads and writes the blog collection on a
+content repo; every write opens a PR rather than committing to the base branch,
+so the same command is safe for a teammate or an agent to run.
+
+```sh
+bun install
+
+# Reads need no token (public content repo)
+bun run cli blog list
+bun run cli blog get agentic-engineering
+
+# Writes open a PR — needs a token with PR-write on the content repo
+export GITHUB_TOKEN=$(gh auth token)
+bun run cli blog create \
+  --title "My New Post" \
+  --description "One-line summary." \
+  --tags "imagineering,ai" \
+  --body-file ./draft.md
+# → opened PR: https://github.com/enspyrco/enspyrco-site/pull/NN
+
+bun run cli blog edit my-new-post --description "Revised summary."
+```
+
+Config is via env: `LOOM_CONTENT_OWNER` / `LOOM_CONTENT_REPO` / `LOOM_CONTENT_DIR`
+/ `LOOM_CONTENT_BRANCH` (defaults: `enspyrco` / `enspyrco-site` / `content/blog`
+/ `main`). The body of a post comes from `--body`, `--body-file` (`-` for stdin),
+or `$EDITOR`.
+
+One [Zod schema](schemas/blog.ts) is the source of truth — it validates CLI
+input, serializes the frontmatter, and generates the TypeScript types. A REST
+surface over the same core is the next phase.
 
 ## Why this isn't existing CMS X
 
@@ -64,13 +98,33 @@ Speculative, listed for posterity:
 
 ## Status
 
-Paused, but no longer purely hypothetical. The repo holds a name, this README, an MIT license, the design for the [Scribe](agents/scribe.md), the list of [agents Loom refuses to host](agents/refused.md), and an [architecture sketch](docs/architecture.md). No code yet *in this repo*.
+Resumed. The first tracer bullet is built: a write-capable CLI for the blog
+collection, backed by one Zod schema and a GitHub-API content store. Reads pull
+live from the content repo; writes open PRs. This proves the load-bearing claim
+end-to-end — *one schema drives validation, serialization, and types* — on real
+content, with the team's existing markdown posts as the corpus.
 
-A first Scribe practice does, however, run live on [enspyrco/enspyrco-site](https://github.com/enspyrco/enspyrco-site) — a breath-paced GitHub Action that reads READMEs across the org and tends the site's relationship to its sources. It is Scribe-as-discipline before Scribe-as-Loom-native-agent. The [Scribe design](agents/scribe.md) records both the postures and what the live practice has taught the design.
+Also in the repo: the design for the [Scribe](agents/scribe.md), the list of
+[agents Loom refuses to host](agents/refused.md), and an
+[architecture sketch](docs/architecture.md). A first Scribe practice runs live
+on [enspyrco/enspyrco-site](https://github.com/enspyrco/enspyrco-site) — a
+breath-paced GitHub Action tending the site's relationship to its sources.
 
-The original trigger for resumption: a real use case where (a) a team has more than ~3 content editors, (b) AI agents are actively touching the same content as humans, and (c) the friction of the *"agent does the work → human hand-edits the result into the CMS"* loop is genuinely costing time. The Scribe design [argues that this trigger has already been pulled](agents/scribe.md#on-looms-resumption-trigger) — Imagineering itself qualifies. The pause persists for now because *noticing* the trigger is not the same as *acting on* it; Loom resumes when there is someone to build it for whom the friction is acute enough to constrain the design.
+What pulled the trigger: Imagineering itself is the use case the README always
+named — more than ~3 content editors, AI agents drafting content humans then
+hand-paste, and the friction of that loop. The [Scribe design](agents/scribe.md#on-looms-resumption-trigger)
+argued the trigger had already been pulled; building the CLI is acting on it.
 
-If you arrived here because you *have* that use case, [open an issue](https://github.com/enspyrco/loom/issues/new) describing it. That's the signal.
+### What's next
+
+- **REST surface** over the same core (the "API" half of the thesis) — the CLI
+  and REST are both thin adapters over `src/core`.
+- **More collections** — `projects` once `lib/projects.ts` is extracted to
+  markdown; `team` after.
+- **Auth beyond API keys** — GitHub OAuth for human attribution.
+
+If you have a content repo you want this pointed at, the env config makes it a
+one-line change; [open an issue](https://github.com/enspyrco/loom/issues/new).
 
 ## License
 
