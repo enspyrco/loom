@@ -1,6 +1,6 @@
 # Architecture
 
-> Sober expansion of the sketch in [README.md §Architecture](../README.md#architecture-sketch). Idea-stage. No code exists yet. Treat every claim here as design intent, not implemented behaviour.
+> Sober expansion of the sketch in [README.md §Architecture](../README.md#architecture-sketch). Mostly design intent — but no longer entirely. **As-built:** the schema-as-source-of-truth claim (§1), the content store (§2), the git-backed write-via-PR flow (§5), and the auth model's API-key tier (§4) are implemented for the `blog` collection and exercised by the CLI (`src/`, `schemas/blog.ts`). The REST and MCP surfaces (§3), other collections, and OAuth remain design intent. Each section notes which it is.
 
 This document exists to make the shape of the system legible enough that a future contributor — or a future version of the author — can pick the work up without re-deriving it from the README. It does not lock in choices the README left open. Where the README hedged, this document hedges.
 
