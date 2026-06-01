@@ -2,9 +2,10 @@ import { test, expect, describe, afterAll } from "bun:test";
 import { Octokit } from "@octokit/rest";
 import { ZodError } from "zod";
 import { GitHubStore } from "../src/core/github-store.ts";
+import { BLOG_COLLECTION } from "../schemas/blog.ts";
 
 describe("GitHubStore write validation (offline)", () => {
-  const store = new GitHubStore({ owner: "x", repo: "y" });
+  const store = new GitHubStore({ collection: BLOG_COLLECTION, owner: "x", repo: "y" });
 
   test("create rejects invalid input before any network call", async () => {
     // No token, no network: validation must fail first on bad frontmatter.
@@ -42,7 +43,14 @@ const token = process.env.GITHUB_TOKEN;
 const opened: { number: number; branch: string }[] = [];
 
 describe.if(RUN)("GitHubStore write (live, self-cleaning)", () => {
-  const store = new GitHubStore({ owner, repo, baseDir: "content/blog", branch: "main", token });
+  const store = new GitHubStore({
+    collection: BLOG_COLLECTION,
+    owner,
+    repo,
+    baseDir: "content/blog",
+    branch: "main",
+    token,
+  });
   const slug = `loom-tracer-test-${Date.now()}`;
 
   afterAll(async () => {
@@ -67,6 +75,6 @@ describe.if(RUN)("GitHubStore write (live, self-cleaning)", () => {
     expect(result.pr!.url).toContain("/pull/");
     expect(result.pr!.branch).toContain(`loom/blog-${slug}`);
     opened.push({ number: result.pr!.number, branch: result.pr!.branch });
-    expect(result.post.title).toBe("Loom Tracer Test");
+    expect(result.item.title).toBe("Loom Tracer Test");
   });
 });

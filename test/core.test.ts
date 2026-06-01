@@ -1,7 +1,6 @@
 import { test, expect, describe } from "bun:test";
 import { ZodError } from "zod";
-import { blogPostInputSchema } from "../schemas/blog.ts";
-import { serializePost, parsePost } from "../src/core/content-store.ts";
+import { BLOG_COLLECTION, blogPostInputSchema } from "../schemas/blog.ts";
 import { MemoryStore } from "../src/core/memory-store.ts";
 
 const SAMPLE = `---
@@ -13,31 +12,34 @@ published: true
 ---
 Agents are first-class participants here. This is the body of the post.`;
 
-describe("schema round-trip", () => {
+describe("BLOG_COLLECTION round-trip", () => {
   test("parse → serialize → parse is stable", () => {
-    const post = parsePost("agentic-engineering", SAMPLE);
+    const post = BLOG_COLLECTION.parse("agentic-engineering", SAMPLE);
     expect(post.title).toBe("Agentic Engineering");
     expect(post.tags).toEqual(["agentic", "ai"]);
     expect(post.published).toBe(true);
     expect(post.wordCount).toBeGreaterThan(0);
     expect(post.readTime).toBeGreaterThanOrEqual(1);
 
-    const reparsed = parsePost("agentic-engineering", serializePost(post));
+    const reparsed = BLOG_COLLECTION.parse(
+      "agentic-engineering",
+      BLOG_COLLECTION.serialize(post),
+    );
     expect(reparsed.title).toBe(post.title);
     expect(reparsed.body).toBe(post.body);
     expect(reparsed.tags).toEqual(post.tags);
   });
 
   test("derived fields are not written to frontmatter", () => {
-    const post = parsePost("x", SAMPLE);
-    const serialized = serializePost(post);
+    const post = BLOG_COLLECTION.parse("x", SAMPLE);
+    const serialized = BLOG_COLLECTION.serialize(post);
     expect(serialized).not.toContain("wordCount");
     expect(serialized).not.toContain("readTime");
   });
 
   test("malformed frontmatter is rejected on read", () => {
     const bad = `---\ntitle: ""\ndescription: "d"\ndate: "nope"\n---\nbody`;
-    expect(() => parsePost("bad", bad)).toThrow(ZodError);
+    expect(() => BLOG_COLLECTION.parse("bad", bad)).toThrow(ZodError);
   });
 
   test("create input rejects non-kebab slug", () => {
@@ -52,30 +54,30 @@ describe("schema round-trip", () => {
   });
 });
 
-describe("MemoryStore", () => {
+describe("MemoryStore + BLOG_COLLECTION", () => {
   const seed = { "agentic-engineering": SAMPLE };
 
   test("list returns published posts", async () => {
-    const store = new MemoryStore(seed);
+    const store = new MemoryStore(BLOG_COLLECTION, seed);
     const posts = await store.list();
     expect(posts).toHaveLength(1);
     expect(posts[0]!.slug).toBe("agentic-engineering");
   });
 
   test("get returns one post with body", async () => {
-    const store = new MemoryStore(seed);
+    const store = new MemoryStore(BLOG_COLLECTION, seed);
     const post = await store.get("agentic-engineering");
     expect(post).not.toBeNull();
     expect(post!.body).toContain("first-class participants");
   });
 
   test("get returns null for missing slug", async () => {
-    const store = new MemoryStore(seed);
+    const store = new MemoryStore(BLOG_COLLECTION, seed);
     expect(await store.get("nope")).toBeNull();
   });
 
   test("create opens a PR and persists", async () => {
-    const store = new MemoryStore();
+    const store = new MemoryStore(BLOG_COLLECTION);
     const result = await store.create({
       slug: "new-post",
       title: "New Post",
@@ -91,7 +93,7 @@ describe("MemoryStore", () => {
   });
 
   test("create rejects missing title before any write", async () => {
-    const store = new MemoryStore();
+    const store = new MemoryStore(BLOG_COLLECTION);
     await expect(
       store.create({
         slug: "bad",
@@ -105,7 +107,7 @@ describe("MemoryStore", () => {
   });
 
   test("create rejects duplicate slug", async () => {
-    const store = new MemoryStore(seed);
+    const store = new MemoryStore(BLOG_COLLECTION, seed);
     await expect(
       store.create({
         slug: "agentic-engineering",
@@ -118,7 +120,7 @@ describe("MemoryStore", () => {
   });
 
   test("update merges a patch and reopens a PR", async () => {
-    const store = new MemoryStore(seed);
+    const store = new MemoryStore(BLOG_COLLECTION, seed);
     const result = await store.update("agentic-engineering", {
       description: "Updated description.",
     });
@@ -129,7 +131,7 @@ describe("MemoryStore", () => {
   });
 
   test("update throws for missing slug", async () => {
-    const store = new MemoryStore();
+    const store = new MemoryStore(BLOG_COLLECTION);
     await expect(store.update("ghost", { title: "x" })).rejects.toThrow("not found");
   });
 });

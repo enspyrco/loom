@@ -2,7 +2,7 @@
 
 > Agent-native CMS — humans and AI agents edit the same content store, structurally.
 
-**Status:** first code shipped — a write-capable CLI for the blog collection. See [Quickstart](#quickstart-cli) and [Status](#status).
+**Status:** first code shipped — a write-capable CLI for two collections (blog + projects), generic over a `Collection` abstraction. See [Quickstart](#quickstart-cli) and [Status](#status).
 
 ---
 
@@ -32,7 +32,7 @@ Real workflows that already happen — today they end in a human hand-editing th
 
 ## Quickstart (CLI)
 
-The first surface is a CLI. It reads and writes the blog collection on a
+The first surface is a CLI. It reads and writes any registered collection on a
 content repo; every write opens a PR rather than committing to the base branch,
 so the same command is safe for a teammate or an agent to run.
 
@@ -42,6 +42,7 @@ bun install
 # Reads need no token (public content repo)
 bun run cli blog list
 bun run cli blog get agentic-engineering
+bun run cli projects list
 
 # Writes open a PR — needs a token with PR-write on the content repo
 export GITHUB_TOKEN=$(gh auth token)
@@ -52,17 +53,22 @@ bun run cli blog create \
   --body-file ./draft.md
 # → opened PR: https://github.com/enspyrco/enspyrco-site/pull/NN
 
-bun run cli blog edit my-new-post --description "Revised summary."
+bun run cli projects create \
+  --name "Tech World" --org enspyrco \
+  --description "A multiplayer 2D virtual world." \
+  --categories "Education" --languages "Dart" --tech "Flutter,Firebase" \
+  --github-url https://github.com/enspyrco/tech_world --featured
 ```
 
 Config is via env: `LOOM_CONTENT_OWNER` / `LOOM_CONTENT_REPO` / `LOOM_CONTENT_DIR`
-/ `LOOM_CONTENT_BRANCH` (defaults: `enspyrco` / `enspyrco-site` / `content/blog`
-/ `main`). The body of a post comes from `--body`, `--body-file` (`-` for stdin),
-or `$EDITOR`.
+/ `LOOM_CONTENT_BRANCH` (defaults: `enspyrco` / `enspyrco-site` / per-collection
+dir / `main`). Blog bodies come from `--body`, `--body-file` (`-` for stdin), or
+`$EDITOR`; project fields are passed as flags.
 
-One [Zod schema](schemas/blog.ts) is the source of truth — it validates CLI
-input, serializes the frontmatter, and generates the TypeScript types. A REST
-surface over the same core is the next phase.
+Each collection is one [Zod schema](schemas/) — blog rides
+markdown+frontmatter, projects rides JSON. The store layer is generic over a
+`Collection<TInput,TOutput>` bundle (schemas + serialize/parse + file extension),
+so adding a third collection is a schema file plus one line in the registry.
 
 ## Why this isn't existing CMS X
 
@@ -98,11 +104,13 @@ Speculative, listed for posterity:
 
 ## Status
 
-Resumed. The first tracer bullet is built: a write-capable CLI for the blog
-collection, backed by one Zod schema and a GitHub-API content store. Reads pull
-live from the content repo; writes open PRs. This proves the load-bearing claim
-end-to-end — *one schema drives validation, serialization, and types* — on real
-content, with the team's existing markdown posts as the corpus.
+Resumed. The first tracer bullet is built: a write-capable CLI for two
+collections (blog + projects), backed by a generic `Collection` abstraction and
+a GitHub-API content store. Reads pull live from the content repo; writes open
+PRs. This proves the load-bearing claim end-to-end — *one schema drives
+validation, serialization, and types*, and the abstraction holds across
+collections that use different storage formats (markdown+frontmatter for blog,
+JSON for projects).
 
 Also in the repo: the design for the [Scribe](agents/scribe.md), the list of
 [agents Loom refuses to host](agents/refused.md), and an
@@ -119,8 +127,10 @@ argued the trigger had already been pulled; building the CLI is acting on it.
 
 - **REST surface** over the same core (the "API" half of the thesis) — the CLI
   and REST are both thin adapters over `src/core`.
-- **More collections** — `projects` once `lib/projects.ts` is extracted to
-  markdown; `team` after.
+- **Projects migration** — extract `enspyrco-site/lib/projects.ts` to per-project
+  JSON files at `content/projects/<slug>.json` so the projects collection has a
+  corpus to read.
+- **More collections** — `team` next.
 - **Auth beyond API keys** — GitHub OAuth for human attribution.
 
 If you have a content repo you want this pointed at, the env config makes it a

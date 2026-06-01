@@ -1,68 +1,73 @@
-import {
-  blogPostInputSchema,
-  blogPostUpdateSchema,
-  type BlogPost,
-  type BlogPostInput,
-  type BlogPostUpdate,
-} from "../../schemas/blog.ts";
-import { serializePost, parsePost, type ContentStore, type WriteResult } from "./content-store.ts";
+import type { Collection } from "./collection.ts";
+import type { ContentStore, WriteResult } from "./content-store.ts";
 
 /**
- * In-memory ContentStore for tests. Stores posts as their serialized
- * markdown+frontmatter strings so it exercises the same serialize/parse path
- * as the git-backed store — the only thing it fakes is where the bytes live.
+ * In-memory ContentStore for tests. Stores items as their serialized bytes so
+ * it exercises the same serialize/parse path as the git-backed store — the
+ * only thing it fakes is where the bytes live.
  *
- * Writes return a synthetic PR so callers can assert on the write-opens-a-PR
- * contract without hitting GitHub.
+ * Generic over the Collection so the same fake serves any collection.
  */
-export class MemoryStore implements ContentStore {
+export class MemoryStore<TInput, TOutput> implements ContentStore<TInput, TOutput> {
   private files = new Map<string, string>();
   private prCounter = 0;
 
-  constructor(seed: Record<string, string> = {}) {
+  constructor(
+    private collection: Collection<TInput, TOutput>,
+    seed: Record<string, string> = {},
+  ) {
     for (const [slug, raw] of Object.entries(seed)) this.files.set(slug, raw);
   }
 
-  async list(): Promise<BlogPost[]> {
-    return [...this.files.entries()]
-      .map(([slug, raw]) => parsePost(slug, raw))
-      .filter((p) => p.published)
-      .sort((a, b) => (a.date > b.date ? -1 : 1));
+  async list(): Promise<TOutput[]> {
+    const items = [...this.files.entries()].map(([slug, raw]) =>
+      this.collection.parse(slug, raw),
+    );
+    const filtered = this.collection.listFilter
+      ? items.filter(this.collection.listFilter)
+      : items;
+    if (this.collection.listSort) filtered.sort(this.collection.listSort);
+    return filtered;
   }
 
-  async get(slug: string): Promise<BlogPost | null> {
+  async get(slug: string): Promise<TOutput | null> {
     const raw = this.files.get(slug);
-    return raw ? parsePost(slug, raw) : null;
+    return raw ? this.collection.parse(slug, raw) : null;
   }
 
-  async create(input: BlogPostInput): Promise<WriteResult> {
-    const validated = blogPostInputSchema.parse(input);
-    if (this.files.has(validated.slug)) {
-      throw new Error(`post '${validated.slug}' already exists`);
+  async create(input: TInput): Promise<WriteResult<TOutput>> {
+    const validated = this.collection.inputSchema.parse(input);
+    const slug = (validated as { slug: string }).slug;
+    if (this.files.has(slug)) {
+      throw new Error(`${this.collection.name} '${slug}' already exists`);
     }
-    const raw = serializePost(validated);
-    this.files.set(validated.slug, raw);
-    return this.writeResult(validated.slug, raw);
-  }
-
-  async update(slug: string, patch: BlogPostUpdate): Promise<WriteResult> {
-    const existing = await this.get(slug);
-    if (!existing) throw new Error(`post '${slug}' not found`);
-    const validatedPatch = blogPostUpdateSchema.parse(patch);
-    const merged = blogPostInputSchema.parse({ ...existing, ...validatedPatch, slug });
-    const raw = serializePost(merged);
+    const raw = this.collection.serialize(validated);
     this.files.set(slug, raw);
     return this.writeResult(slug, raw);
   }
 
-  private writeResult(slug: string, raw: string): WriteResult {
+  async update(slug: string, patch: Partial<TInput>): Promise<WriteResult<TOutput>> {
+    const existing = await this.get(slug);
+    if (!existing) throw new Error(`${this.collection.name} '${slug}' not found`);
+    const validatedPatch = this.collection.updateSchema.parse(patch);
+    const merged = this.collection.inputSchema.parse({
+      ...(existing as object),
+      ...(validatedPatch as object),
+      slug,
+    });
+    const raw = this.collection.serialize(merged);
+    this.files.set(slug, raw);
+    return this.writeResult(slug, raw);
+  }
+
+  private writeResult(slug: string, raw: string): WriteResult<TOutput> {
     const number = ++this.prCounter;
     return {
-      post: parsePost(slug, raw),
+      item: this.collection.parse(slug, raw),
       pr: {
         url: `memory://pr/${number}`,
         number,
-        branch: `loom/blog-${slug}`,
+        branch: `loom/${this.collection.name}-${slug}`,
       },
     };
   }

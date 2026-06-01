@@ -1,4 +1,6 @@
 import { z } from "zod";
+import matter from "gray-matter";
+import type { Collection } from "../src/core/collection.ts";
 
 /**
  * The blog collection schema — the single source of truth.
@@ -26,12 +28,6 @@ export const blogFrontmatterSchema = z.object({
   published: z.boolean().default(true),
 });
 
-/**
- * The writable shape of a blog post — what `create` and `update` accept.
- * Frontmatter fields plus the markdown body and the slug (which becomes the
- * filename). This is the canonical schema; read and frontmatter shapes are
- * derived from it so there is exactly one place to change a field.
- */
 export const blogPostInputSchema = blogFrontmatterSchema.extend({
   slug: z
     .string()
@@ -40,30 +36,54 @@ export const blogPostInputSchema = blogFrontmatterSchema.extend({
   body: z.string().min(1, "body is required"),
 });
 
-/**
- * The full read result — the writable shape plus fields Loom derives at read
- * time (never stored). Derived fields are recomputed on every read so they
- * cannot drift from the body.
- */
 export const blogPostSchema = blogPostInputSchema.extend({
   wordCount: z.number().int().nonnegative(),
   readTime: z.number().int().positive(),
 });
 
-/** Partial update: any writable field except slug (slug identifies the file). */
 export const blogPostUpdateSchema = blogPostInputSchema.omit({ slug: true }).partial();
 
 export type BlogFrontmatter = z.infer<typeof blogFrontmatterSchema>;
-// Input type: `.default()` fields (tags, published) are optional to callers.
 export type BlogPostInput = z.input<typeof blogPostInputSchema>;
-// Output type: defaults applied, derived fields present.
 export type BlogPost = z.output<typeof blogPostSchema>;
 export type BlogPostUpdate = z.input<typeof blogPostUpdateSchema>;
 
-/** Recompute the derived fields from a markdown body. Single definition so
- * the CLI, REST layer, and the site's own loader can agree on the numbers. */
+/** Recompute the derived fields from a markdown body. */
 export function deriveFields(body: string): { wordCount: number; readTime: number } {
   const wordCount = body.trim().split(/\s+/).filter(Boolean).length;
   const readTime = Math.max(1, Math.round(wordCount / 200));
   return { wordCount, readTime };
 }
+
+/**
+ * The blog Collection. Serializes to markdown+frontmatter via gray-matter;
+ * derived fields (wordCount, readTime) are recomputed on every read so they
+ * cannot drift from the body.
+ */
+export const BLOG_COLLECTION: Collection<BlogPostInput, BlogPost> = {
+  name: "blog",
+  dir: "content/blog",
+  ext: ".md",
+  inputSchema: blogPostInputSchema,
+  outputSchema: blogPostSchema,
+  updateSchema: blogPostUpdateSchema,
+
+  serialize(input) {
+    const frontmatter = blogFrontmatterSchema.parse(input);
+    return matter.stringify(input.body, frontmatter);
+  },
+
+  parse(slug, raw) {
+    const { data, content } = matter(raw);
+    const frontmatter = blogFrontmatterSchema.parse(data);
+    return blogPostSchema.parse({
+      slug,
+      body: content.trim(),
+      ...frontmatter,
+      ...deriveFields(content),
+    });
+  },
+
+  listFilter: (post) => post.published,
+  listSort: (a, b) => (a.date > b.date ? -1 : 1),
+};

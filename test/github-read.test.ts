@@ -1,12 +1,14 @@
 import { test, expect, describe } from "bun:test";
 import { GitHubStore } from "../src/core/github-store.ts";
+import { BLOG_COLLECTION } from "../schemas/blog.ts";
 
 // Live reads against the public enspyrco-site repo. Opt-in via LOOM_INTEGRATION=1
 // so offline / CI-without-network runs skip it. No token needed (public repo).
 const RUN = process.env.LOOM_INTEGRATION === "1";
 
-describe.if(RUN)("GitHubStore reads (live)", () => {
+describe.if(RUN)("GitHubStore reads (live, blog)", () => {
   const store = new GitHubStore({
+    collection: BLOG_COLLECTION,
     owner: "enspyrco",
     repo: "enspyrco-site",
     baseDir: "content/blog",

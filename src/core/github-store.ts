@@ -1,23 +1,13 @@
 import { Octokit } from "@octokit/rest";
-import {
-  blogPostInputSchema,
-  blogPostUpdateSchema,
-  type BlogPost,
-  type BlogPostInput,
-  type BlogPostUpdate,
-} from "../../schemas/blog.ts";
-import {
-  parsePost,
-  serializePost,
-  blogPath,
-  type ContentStore,
-  type WriteResult,
-} from "./content-store.ts";
+import type { Collection } from "./collection.ts";
+import { pathFor } from "./collection.ts";
+import type { ContentStore, WriteResult } from "./content-store.ts";
 
-export interface GitHubStoreConfig {
+export interface GitHubStoreConfig<TInput, TOutput> {
+  collection: Collection<TInput, TOutput>;
   owner: string;
   repo: string;
-  /** Directory within the repo holding the collection. */
+  /** Directory within the repo holding the collection. Defaults to collection.dir. */
   baseDir?: string;
   /** Branch to read from / base PRs against. */
   branch?: string;
@@ -30,25 +20,32 @@ export interface GitHubStoreConfig {
  * writes never touch the base branch — they create a feature branch, commit
  * the file, and open a PR. That makes the write path safe to expose widely:
  * the worst an authorized caller can do is *propose* a change.
+ *
+ * Generic over the Collection — the store knows nothing about markdown,
+ * JSON, frontmatter, or any specific schema. Format choice rides
+ * `collection.serialize`/`collection.parse`; file extension rides
+ * `collection.ext`. Adding a third collection requires zero changes here.
  */
-export class GitHubStore implements ContentStore {
+export class GitHubStore<TInput, TOutput> implements ContentStore<TInput, TOutput> {
   private octokit: Octokit;
+  private collection: Collection<TInput, TOutput>;
   private owner: string;
   private repo: string;
   private baseDir: string;
   private branch: string;
   private hasToken: boolean;
 
-  constructor(config: GitHubStoreConfig) {
+  constructor(config: GitHubStoreConfig<TInput, TOutput>) {
+    this.collection = config.collection;
     this.owner = config.owner;
     this.repo = config.repo;
-    this.baseDir = config.baseDir ?? "content/blog";
+    this.baseDir = config.baseDir ?? config.collection.dir;
     this.branch = config.branch ?? "main";
     this.hasToken = Boolean(config.token);
     this.octokit = new Octokit(config.token ? { auth: config.token } : {});
   }
 
-  async list(): Promise<BlogPost[]> {
+  async list(): Promise<TOutput[]> {
     const { data } = await this.octokit.repos.getContent({
       owner: this.owner,
       repo: this.repo,
@@ -58,59 +55,66 @@ export class GitHubStore implements ContentStore {
     if (!Array.isArray(data)) {
       throw new Error(`${this.baseDir} is not a directory`);
     }
+    const ext = this.collection.ext;
     const slugs = data
-      .filter((e) => e.type === "file" && e.name.endsWith(".md"))
-      .map((e) => e.name.replace(/\.md$/, ""));
-    const posts = await Promise.all(slugs.map((s) => this.get(s)));
-    return posts
-      .filter((p): p is BlogPost => p !== null && p.published)
-      .sort((a, b) => (a.date > b.date ? -1 : 1));
+      .filter((e) => e.type === "file" && e.name.endsWith(ext))
+      .map((e) => e.name.slice(0, -ext.length));
+    const items = await Promise.all(slugs.map((s) => this.get(s)));
+    let result = items.filter((i) => i !== null) as TOutput[];
+    if (this.collection.listFilter) result = result.filter(this.collection.listFilter);
+    if (this.collection.listSort) result.sort(this.collection.listSort);
+    return result;
   }
 
-  async get(slug: string): Promise<BlogPost | null> {
+  async get(slug: string): Promise<TOutput | null> {
     try {
       const { data } = await this.octokit.repos.getContent({
         owner: this.owner,
         repo: this.repo,
-        path: blogPath(slug, this.baseDir),
+        path: pathFor(this.collection, slug, this.baseDir),
         ref: this.branch,
       });
       if (Array.isArray(data) || data.type !== "file" || !("content" in data)) {
         return null;
       }
       const raw = Buffer.from(data.content, "base64").toString("utf-8");
-      return parsePost(slug, raw);
+      return this.collection.parse(slug, raw);
     } catch (err: any) {
       if (err?.status === 404) return null;
       throw err;
     }
   }
 
-  async create(input: BlogPostInput): Promise<WriteResult> {
-    const validated = blogPostInputSchema.parse(input);
-    if (await this.get(validated.slug)) {
-      throw new Error(`post '${validated.slug}' already exists`);
+  async create(input: TInput): Promise<WriteResult<TOutput>> {
+    const validated = this.collection.inputSchema.parse(input);
+    const slug = (validated as { slug: string }).slug;
+    if (await this.get(slug)) {
+      throw new Error(`${this.collection.name} '${slug}' already exists`);
     }
-    const raw = serializePost(validated);
-    return this.commitViaPR({
-      slug: validated.slug,
-      raw,
-      message: `blog: add ${validated.slug}`,
-      title: `Add blog post: ${validated.title}`,
-    });
-  }
-
-  async update(slug: string, patch: BlogPostUpdate): Promise<WriteResult> {
-    const existing = await this.get(slug);
-    if (!existing) throw new Error(`post '${slug}' not found`);
-    const validatedPatch = blogPostUpdateSchema.parse(patch);
-    const merged = blogPostInputSchema.parse({ ...existing, ...validatedPatch, slug });
-    const raw = serializePost(merged);
+    const raw = this.collection.serialize(validated);
     return this.commitViaPR({
       slug,
       raw,
-      message: `blog: update ${slug}`,
-      title: `Update blog post: ${merged.title}`,
+      message: `${this.collection.name}: add ${slug}`,
+      title: `Add ${this.collection.name}: ${slug}`,
+    });
+  }
+
+  async update(slug: string, patch: Partial<TInput>): Promise<WriteResult<TOutput>> {
+    const existing = await this.get(slug);
+    if (!existing) throw new Error(`${this.collection.name} '${slug}' not found`);
+    const validatedPatch = this.collection.updateSchema.parse(patch);
+    const merged = this.collection.inputSchema.parse({
+      ...(existing as object),
+      ...(validatedPatch as object),
+      slug,
+    });
+    const raw = this.collection.serialize(merged);
+    return this.commitViaPR({
+      slug,
+      raw,
+      message: `${this.collection.name}: update ${slug}`,
+      title: `Update ${this.collection.name}: ${slug}`,
     });
   }
 
@@ -123,15 +127,14 @@ export class GitHubStore implements ContentStore {
     raw: string;
     message: string;
     title: string;
-  }): Promise<WriteResult> {
+  }): Promise<WriteResult<TOutput>> {
     if (!this.hasToken) {
       throw new Error("a token is required for writes");
     }
     const { owner, repo, baseDir, branch: base } = this;
-    const path = blogPath(args.slug, baseDir);
-    const head = `loom/blog-${args.slug}-${Date.now()}`;
+    const path = pathFor(this.collection, args.slug, baseDir);
+    const head = `loom/${this.collection.name}-${args.slug}-${Date.now()}`;
 
-    // Branch off the current base tip.
     const baseRef = await this.octokit.git.getRef({
       owner,
       repo,
@@ -144,7 +147,6 @@ export class GitHubStore implements ContentStore {
       sha: baseRef.data.object.sha,
     });
 
-    // Create or update the file on the new branch (update needs the blob sha).
     let sha: string | undefined;
     try {
       const existing = await this.octokit.repos.getContent({
@@ -175,11 +177,11 @@ export class GitHubStore implements ContentStore {
       base,
       head,
       title: args.title,
-      body: `Opened by Loom CLI. Validated against the blog schema.\n\nCollection: \`${baseDir}\` · slug: \`${args.slug}\``,
+      body: `Opened by Loom CLI. Validated against the ${this.collection.name} schema.\n\nCollection: \`${baseDir}\` · slug: \`${args.slug}\``,
     });
 
     return {
-      post: parsePost(args.slug, args.raw),
+      item: this.collection.parse(args.slug, args.raw),
       pr: { url: pr.data.html_url, number: pr.data.number, branch: head },
     };
   }
